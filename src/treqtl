@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+
+###
+# ypar
+# @ treqtl/treqtl.py
+# main prompt and menu options for treqtl
+###
+
+# import modules relevant to main
+import argparse
+# verbose log options are deprecated. functions deleted 01/07/2016
+#import logging
+#import gzip
+import sys
+import os
+from time import strftime
+from sys import argv
+
+# import modules relevant to analysis
+import pandas as pd
+
+# import treqtl
+import treqtl_analyze
+import treqtl_input
+import get_gwas
+import mr_estimate
+
+
+# general prompt
+header='''\
+################################################################################
+#                               treqtl v 0.0.5                                 #
+#                               (c) 2015- ypar                                 #
+#    analyze eqtl and gwas summary statistics using mendelian randomization    #
+################################################################################
+'''
+putstamp=strftime("\n%m-%d-%Y %H:%M:%S")
+
+def get_args():
+  """parse arguements"""
+
+  parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=header,
+    epilog=putstamp
+    )
+  
+  targs = parser.add_mutually_exclusive_group()
+  eargs = parser.add_mutually_exclusive_group()
+  gargs = parser.add_mutually_exclusive_group()
+
+  targs.add_argument("-t", "--treqtl",
+                      action='store_true',
+                      dest='treqtl',
+                      default=False,
+                      help="run analysis. assumes independence among variants per transcript given. variant statistics are summed up per transcript. if given, --xtreqtl or --itreqtl cannot be used.")
+
+  targs.add_argument("-y", "--xtreqtl",
+                      action='store_true',
+                      dest='xtreqtl',
+                      default=False,
+                      help="run analysis using inout file with matched iv and trait summary statistics. if given, --treqtl or --itreqtl cannot be used.")
+  
+  targs.add_argument("-i", "--itreqtl",
+                      action='store_true',
+                      dest='itreqtl',
+                      default=False,
+                      help="run analysis per variant. useful for analyzing multiple variants per transcript when variants are not independent. if given, --treqtl or --xtreqtl cannot be used.")
+
+  eargs.add_argument('-e', '--eqtl',
+                      type=str,
+                      nargs='?', 
+                      dest='eqtl',  
+                      help='eqtl (iv) summary statistics file')
+  
+  eargs.add_argument('--eqtldir',
+                      type=str,
+                      nargs='?', 
+                      dest='eqtldir',  
+                      help='directory containing eqtl input files. if not given, --eqtl is required')
+
+  gargs.add_argument('-g', '--gwas',
+                      type=str,
+                      nargs='?', 
+                      dest='gwas',
+                      help='gwas (trait) summary statistics file')
+  
+  gargs.add_argument('--gwasdir',
+                      type=str,
+                      nargs='?', 
+                      dest='gwasdir',
+                      help='directory containing gwas input files. if not given, --gwas is required')
+  
+  gargs.add_argument('-x', '--xinput',
+                      type=str,
+                      nargs='?', 
+                      dest='xinput',
+                      help='combined iv and trait summary statistics file')
+  
+  parser.add_argument('--getgwas',
+                      type=str,
+                      action='store',
+                      dest='getgwas',
+                      help='get gwas dataset from public repos and format for treqtl analysis. see the document for all available options'
+                      )
+
+  parser.add_argument("-o", "--out",
+                      type=str,
+                      nargs='?',
+                      dest='outfile',
+                      default='treqtl.out', 
+                      help="path to out file")
+  
+  parser.add_argument("-l", "--log",
+                      type=str,
+                      nargs='?',
+                      dest='logfile',
+                      default='treqtl.log', 
+                      help="path to log file")
+
+  parser.add_argument("-v", "--verbose",
+                      action='store_true',
+                      help="output verbose logs")
+  
+  print(header)
+      
+  if len(sys.argv) > 1:
+    
+    args = parser.parse_args()
+    
+    if args.getgwas is not None:
+      get_gwas.parse_getgwas(args.getgwas)
+    else:
+      pass
+    
+    # check input 1
+    if args.eqtl is not None:
+      if not os.path.isfile(args.eqtl):
+        sys.stderr.write('\neqtl input file does not exist.\n\n')
+        sys.exit()
+      else:
+        eqtldf = treqtl_input.read_eqtl(args.eqtl)
+        pass
+
+    elif args.eqtldir is not None:
+      if not os.path.isdir(args.eqtldir):
+        sys.stderr.write('\neqtl directory does not exist.\n\n')
+        sys.exit()
+      else:
+        efiles = treqtl_input.read_dir(args.eqtldir)
+        if efiles is not None:
+          pass
+        else:
+          sys.stderr.write('\nsomething went wrong with the eqtl filelist generation. \n\n')
+          sys.exit()
+        pass
+    
+    elif args.xinput is not None:
+      if not os.path.isfile(args.xinput):
+        sys.stderr.write('\ninput file does not exist.\n\n')
+        sys.exit()
+      else:
+        xdf = xtreqtl.read_xfile(args.xinput)
+        pass
+    
+    else:
+      logmessage = '\ncheck your eqtl input file\n\n'
+      print(logmessage)
+      sys.exit()
+    
+    # check input 2
+    if args.gwas is not None:
+      if not os.path.isfile(args.gwas):
+        sys.stderr.write('\ngwas input file does not exist\n\n')
+        sys.exit()
+      else:
+        gwasdf = treqtl_input.read_gwas(args.gwas)
+        pass
+      
+    elif args.gwasdir is not None:
+      if not os.path.isdir(args.gwasdir):
+        sys.stderr.write('\ngwas directory does not exist\n\n')
+        sys.exit()
+      else:
+        gfiles = treqtl_input.read_dir(args.gwasdir)
+        if gfiles is not None:
+          pass
+        else:
+          sys.stderr.write('\nsomething went wrong with the gwas filelist generation. \n\n')
+          sys.exit()
+        pass
+      
+    elif args.xinput is not None:
+      if not os.path.isfile(args.xinput):
+        sys.stderr.write('\ninput file does not exist.\n\n')
+        sys.exit()
+      else:
+        pass
+      
+    else:
+      logmessage = 'check your gwas input file'
+      print(logmessage)
+      sys.exit()
+    
+    # check if dir of files given or dataframes are returned
+    if args.eqtldir is not None and args.gwasdir is not None:
+      if efiles is not None and gfiles is not None:
+        treqtl_input.iter_dir(efiles, gfiles, args.treqtl, args.itreqtl)
+        pass
+    
+    elif isinstance(eqtldf, pd.DataFrame) and isinstance(gwasdf, pd.DataFrame):
+      treqtl_analyze.run_treqtl(eqtldf, gwasdf, args.outfile, args.logfile, args.treqtl, args.itreqtl)
+      
+    else:
+      sys.stderr.write('\ncheck your input parameters\n\n')
+      sys.exit()
+      
+    # wrap up
+    log_args(args)    
+    print(putstamp)
+    
+    return args
+  
+  else:
+    
+    print('analysis terminated. check your parameters and input files.')
+    print(putstamp)
+    
+
+def log_args(args):
+  
+  """list all input parameters
+  """
+
+  print("""
+analysis used following parameters:
+  eqtl           :        {0}
+  eqtl directory :        {1}
+  gwas           :        {2}
+  gwas directory :        {3}
+  out file       :        {4} 
+  log file       :        {5}
+  run treqtl     :        {6}
+  run xtreqtl    :        {7}
+  run itreqtl    :        {8}
+  """.format(args.eqtl,
+             args.eqtldir,
+             args.gwas,
+             args.gwasdir,
+             args.outfile,
+             args.logfile,
+             args.treqtl,
+             args.xtreqtl,
+             args.itreqtl
+             ))
+
+
+if __name__ == '__main__':
+
+  args = get_args()
+  
